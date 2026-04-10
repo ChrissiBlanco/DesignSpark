@@ -14,47 +14,47 @@ DesignSpark is an Android companion for **early product discovery**. You capture
 
 ## Screenshots
 
-Images are scaled for comfortable viewing on laptop-width windows (~380px wide; aspect ratio preserved).
+Images are scaled for comfortable viewing on laptop-width windows (~280px wide; aspect ratio preserved).
 
 Home — idea list with stage status.
 
-<img src="docs/screenshots/home.png" alt="Home" width="380" />
+<img src="docs/screenshots/home.png" alt="Home" width="280" />
 
 New idea — title and description.
 
-<img src="docs/screenshots/new-idea.png" alt="New idea" width="380" />
+<img src="docs/screenshots/new-idea.png" alt="New idea" width="280" />
 
 Example idea captured (cleaning / accountability use case).
 
-<img src="docs/screenshots/new-idea-example.png" alt="New idea example" width="380" />
+<img src="docs/screenshots/new-idea-example.png" alt="New idea example" width="280" />
 
 Stage 1 — guided discovery checklist for a project.
 
-<img src="docs/screenshots/stage1-guided-discovery.png" alt="Stage 1 guided discovery" width="380" />
+<img src="docs/screenshots/stage1-guided-discovery.png" alt="Stage 1 guided discovery" width="280" />
 
 Competitor scan — loading.
 
-<img src="docs/screenshots/competitor-scan-loading.png" alt="Competitor scan loading" width="380" />
+<img src="docs/screenshots/competitor-scan-loading.png" alt="Competitor scan loading" width="280" />
 
 Competitor scan — results.
 
-<img src="docs/screenshots/competitor-scan-results.png" alt="Competitor scan results" width="380" />
+<img src="docs/screenshots/competitor-scan-results.png" alt="Competitor scan results" width="280" />
 
 Simulated user interviews.
 
-<img src="docs/screenshots/user-interviews.png" alt="User interviews" width="380" />
+<img src="docs/screenshots/user-interviews.png" alt="User interviews" width="280" />
 
 SWOT analysis.
 
-<img src="docs/screenshots/swot.png" alt="SWOT" width="380" />
+<img src="docs/screenshots/swot.png" alt="SWOT" width="280" />
 
 Stage 1 summary (accordion sections).
 
-<img src="docs/screenshots/stage1-summary.png" alt="Stage 1 summary" width="380" />
+<img src="docs/screenshots/stage1-summary.png" alt="Stage 1 summary" width="280" />
 
 Stage 2 — coming soon placeholder.
 
-<img src="docs/screenshots/stage2-coming-soon.png" alt="Stage 2 coming soon" width="380" />
+<img src="docs/screenshots/stage2-coming-soon.png" alt="Stage 2 coming soon" width="280" />
 
 ---
 
