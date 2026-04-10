@@ -15,6 +15,14 @@ interface GeneratedInsightDao {
     @Query("SELECT * FROM generated_insights WHERE project_id = :projectId ORDER BY order_index ASC")
     fun getByProjectId(projectId: String): Flow<List<GeneratedInsightEntity>>
 
+    @Query(
+        "SELECT * FROM generated_insights WHERE project_id = :projectId AND type = :type ORDER BY order_index ASC"
+    )
+    fun getByProjectIdAndType(projectId: String, type: String): Flow<List<GeneratedInsightEntity>>
+
     @Query("DELETE FROM generated_insights WHERE project_id = :projectId")
     suspend fun deleteByProjectId(projectId: String)
+
+    @Query("DELETE FROM generated_insights WHERE project_id = :projectId AND type = :type")
+    suspend fun deleteByProjectIdAndType(projectId: String, type: String)
 }

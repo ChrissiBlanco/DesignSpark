@@ -2,8 +2,6 @@ package com.designspark.ui.screens.home
 
 import app.cash.turbine.test
 import com.designspark.domain.model.Project
-import com.designspark.domain.model.ProjectStage
-import com.designspark.domain.model.ProjectStatus
 import com.designspark.domain.usecase.DeleteProjectUseCase
 import com.designspark.domain.usecase.GetProjectsUseCase
 import io.mockk.coEvery
@@ -96,12 +94,8 @@ class HomeViewModelTest {
     private fun project(id: String, title: String) = Project(
         id = id,
         title = title,
-        userGroup = "Users",
-        context = "Context",
-        stage = ProjectStage.NOTHING,
+        description = "Context",
         createdAt = 0L,
-        updatedAt = 0L,
-        status = ProjectStatus.DRAFT,
-        isSynced = false
+        updatedAt = 0L
     )
 }

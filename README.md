@@ -1,12 +1,38 @@
 # DesignSpark
 
-An Android app that helps UX designers and HCI practitioners kick-start research projects. Describe your project idea, user group, and design stage — DesignSpark calls the Anthropic API and returns structured HCI insights: user personas, research method cards, assumptions to test, and a recruit brief. All data is persisted offline-first in Room so insights are always available without a network connection.
+DesignSpark is an Android companion for **early product discovery**. You capture a short **project title and idea**, then work through **Stage 1 — guided discovery**: a **competitor scan** (named apps, gaps, pain points), **simulated user interviews** (personas with sentiment, summaries, and quotes), and a **SWOT** grounded in that research. When Stage 1 is complete, a **summary** screen lets you review everything before moving on. The flow suits HCI and UX coursework or solo ideation when you want structured, AI-assisted research artifacts you can iterate on.
+
+---
+
+## App idea
+
+- **Problem:** Turning a vague app idea into defensible research notes (competition, users, strategy) is slow and easy to skip.
+- **Approach:** One idea = one **project**. Stage 1 is a **fixed sequence** (competitor scan → interviews → SWOT) with clear “next step” actions and progress stored on device.
+- **AI role:** The app calls the **OpenAI API** to produce structured outputs; results are **saved in Room** so you can reopen a project without repeating network calls.
+
+---
+
+## Tech stack
+
+| Area | Choice |
+|------|--------|
+| Language | Kotlin (JVM 11) |
+| UI | Jetpack Compose, Material 3 |
+| Navigation | Navigation Compose |
+| DI | Hilt (KSP) |
+| Local data | Room (KSP) |
+| Networking | Retrofit, OkHttp (logging), Gson |
+| Async | Kotlin coroutines (`Dispatchers.IO` for I/O) |
+| Images | Coil (Compose) |
+| Testing | JUnit, MockK, Turbine, Compose UI tests, Room in-memory for Android tests |
+
+**Build:** Android Gradle Plugin with `compileSdk` 36, `minSdk` 26, `targetSdk` 35. OpenAI key is supplied via `local.properties` and exposed as `BuildConfig.OPENAI_API_KEY` (not committed).
 
 ---
 
 ## Architecture
 
-MVVM + Clean Architecture in three layers:
+**MVVM + Clean Architecture** in three layers:
 
 ```
 UI (Jetpack Compose)
@@ -18,10 +44,32 @@ Domain (pure Kotlin — no Android deps)
 Data (Room + Retrofit)
 ```
 
-- **UI layer** — Compose screens observe a single `UiState` data class via `collectAsStateWithLifecycle()`. No business logic in composables.
-- **Domain layer** — one use case per action (`CreateProjectUseCase`, `GenerateInsightsUseCase`, etc.). Repository interface defined here; implementation lives in the data layer.
-- **Data layer** — `ProjectRepositoryImpl` is the single source of truth. Room is always written to before any data reaches the UI. Retrofit calls are made on `Dispatchers.IO`; the UI always reads from Room `Flow`s.
-- **DI** — Hilt throughout (`@HiltViewModel`, `@InstallIn(SingletonComponent::class)`).
+- **UI** — Screens observe a single `UiState` (or equivalent) with `collectAsStateWithLifecycle()`. Composables stay thin; navigation callbacks are injected.
+- **Domain** — One use case per meaningful action (e.g. create project, generate competitors / interviews / SWOT, mark Stage 1 complete). The repository is defined here; Room entities and DTOs do not leak upward.
+- **Data** — `ProjectRepositoryImpl` coordinates DAOs and the OpenAI Retrofit service. **Room is the source of truth**: generated artifacts are written after successful API responses and exposed as `Flow`s for the UI.
+- **DI** — Hilt modules provide the database, API, and repository bindings (`@HiltViewModel` in the UI layer).
+
+This keeps **offline-first** behaviour: once Stage 1 outputs exist, lists and detail screens can render from local data; **new generation** still requires network and shows errors / retry when unavailable.
+
+---
+
+## Coming soon
+
+These stages and features are **in the product direction** but **not fully implemented** yet (placeholders exist in the app where noted).
+
+**Stage 2 — Problem & user**
+
+- **Problem statement** — Refine the core problem into a crisp statement.
+- **User personas** — Generate personas grounded in interview findings.
+- **Assumption challenges** — Steelman the opposite of your idea.
+
+**Stage 3 — MVP scope**
+
+- **Feature prioritisation** — Impact vs effort for a feature list.
+- **Must-have vs nice-to-have** — Ruthless scope cutting before build.
+- **PRD draft** — A simple product requirements outline to share.
+
+Later roadmap items may include deeper **Stage 1 editing** (manual tweaks to generated cards), **export/share**, and **real tracking/product** features beyond discovery (the sample “cleaning tracking” idea in the screenshots is one use case the AI can reason about—not yet a built-in task tracker).
 
 ---
 
@@ -29,34 +77,66 @@ Data (Room + Retrofit)
 
 ### API key
 
-1. Copy `local.properties.example` to `local.properties` (or create it if absent).
-2. Add your Anthropic API key:
+1. Create `local.properties` in the project root (it is gitignored) if you do not already have one from Android Studio.
+2. Add your OpenAI API key:
+
    ```
-   ANTHROPIC_API_KEY=sk-ant-...
+   OPENAI_API_KEY=sk-...
    ```
-3. The key is injected at build time via `BuildConfig.ANTHROPIC_API_KEY` and sent in the `x-api-key` header. It is never committed to version control (`.gitignore` excludes `local.properties`).
+
+3. The key is injected at build time via `BuildConfig.OPENAI_API_KEY` and sent in the `Authorization: Bearer` header. It is never committed (`.gitignore` excludes `local.properties`).
 
 ### Build
 
-Open the project in Android Studio Meerkat (or newer) and sync Gradle. The app targets API 35 with a minimum of API 26.
+Open the project in Android Studio Meerkat (or newer) and sync Gradle.
 
-```
+```bash
 # From the project root:
 ./gradlew assembleDebug
 ./gradlew test                  # unit tests
-./gradlew connectedAndroidTest  # instrumented tests (requires a device/emulator)
+./gradlew connectedAndroidTest  # instrumented tests (device/emulator)
 ```
 
 ---
 
-## Offline behaviour
+## Screenshots
 
-Room is the source of truth. If insights have already been generated, all screens load instantly without a network connection. The **Generate Insights** action is the only operation that requires internet — the app shows a clear "No internet connection" error and a Retry button if the device is offline at that point.
+Home — idea list with stage status.
 
----
+![Home](docs/screenshots/home.png)
 
-## Screenshot
+New idea — title and description.
 
-_Add a screenshot here once the app is running._
+![New idea](docs/screenshots/new-idea.png)
 
-![App screenshot placeholder](docs/screenshot.png)
+Example idea captured (cleaning / accountability use case).
+
+![New idea example](docs/screenshots/new-idea-example.png)
+
+Stage 1 — guided discovery checklist for a project.
+
+![Stage 1 guided discovery](docs/screenshots/stage1-guided-discovery.png)
+
+Competitor scan — loading.
+
+![Competitor scan loading](docs/screenshots/competitor-scan-loading.png)
+
+Competitor scan — results.
+
+![Competitor scan results](docs/screenshots/competitor-scan-results.png)
+
+Simulated user interviews.
+
+![User interviews](docs/screenshots/user-interviews.png)
+
+SWOT analysis.
+
+![SWOT](docs/screenshots/swot.png)
+
+Stage 1 summary (accordion sections).
+
+![Stage 1 summary](docs/screenshots/stage1-summary.png)
+
+Stage 2 — coming soon placeholder.
+
+![Stage 2 coming soon](docs/screenshots/stage2-coming-soon.png)

@@ -10,14 +10,17 @@ import com.designspark.data.local.dao.GeneratedInsightDao
 import com.designspark.data.local.dao.ProjectDao
 import com.designspark.data.local.entity.toDomain
 import com.designspark.data.local.entity.toEntity
-import com.designspark.data.remote.api.AnthropicApiService
-import com.designspark.data.remote.dto.AnthropicRequestDto
-import com.designspark.data.remote.dto.InsightResponseDto
-import com.designspark.data.remote.dto.MessageDto
-import com.designspark.data.remote.dto.toDomain
+import com.designspark.data.remote.api.OpenAiApiService
+import com.designspark.data.remote.dto.CompetitorScanResponseDto
+import com.designspark.data.remote.dto.OpenAiChatCompletionRequestDto
+import com.designspark.data.remote.dto.OpenAiChatCompletionResponseDto
+import com.designspark.data.remote.dto.OpenAiChatMessageDto
+import com.designspark.data.remote.dto.SwotResponseDto
+import com.designspark.data.remote.dto.UserInterviewsResponseDto
+import com.designspark.data.remote.dto.toGeneratedInsights
 import com.designspark.domain.model.Annotation
+import com.designspark.domain.model.InsightType
 import com.designspark.domain.model.Project
-import com.designspark.domain.model.ProjectStatus
 import com.designspark.domain.model.ProjectWithInsights
 import com.designspark.domain.repository.ProjectRepository
 import com.google.gson.Gson
@@ -26,8 +29,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import retrofit2.HttpException
 import javax.inject.Inject
 
 class ProjectRepositoryImpl @Inject constructor(
@@ -36,14 +41,15 @@ class ProjectRepositoryImpl @Inject constructor(
     private val projectDao: ProjectDao,
     private val generatedInsightDao: GeneratedInsightDao,
     private val annotationDao: AnnotationDao,
-    private val anthropicApiService: AnthropicApiService
+    private val openAiApiService: OpenAiApiService,
+    private val gson: Gson
 ) : ProjectRepository {
 
     override suspend fun createProject(project: Project) = withContext(Dispatchers.IO) {
         projectDao.insert(project.toEntity())
     }
 
-    override suspend fun generateInsights(project: Project): Result<Unit> =
+    override suspend fun generateCompetitors(project: Project): Result<Unit> =
         withContext(Dispatchers.IO) {
             if (!isConnected()) {
                 return@withContext Result.failure(
@@ -51,38 +57,113 @@ class ProjectRepositoryImpl @Inject constructor(
                 )
             }
             runCatching {
-                val response = anthropicApiService.generateInsights(buildRequest(project))
-                val raw = response.content.first().text
-                    .replace("```json", "")
-                    .replace("```", "")
-                    .trim()
-                val dto = Gson().fromJson(raw, InsightResponseDto::class.java)
-                val insights = dto.toDomain(project.id)
+                val raw = requestJson(
+                    buildRequest(
+                        systemContent = COMPETITORS_SYSTEM_PROMPT,
+                        userContent = productUserMessage(project)
+                    )
+                )
+                val dto = gson.fromJson(raw, CompetitorScanResponseDto::class.java)
+                val insights = dto.toGeneratedInsights(project.id)
+                val now = System.currentTimeMillis()
                 db.withTransaction {
-                    generatedInsightDao.deleteByProjectId(project.id)
+                    generatedInsightDao.deleteByProjectIdAndType(project.id, InsightType.COMPETITOR.name)
                     generatedInsightDao.insertAll(insights.map { it.toEntity() })
                     projectDao.update(
-                        project.copy(
-                            status = ProjectStatus.GENERATED,
-                            updatedAt = System.currentTimeMillis(),
-                            isSynced = true
-                        ).toEntity()
+                        project.copy(updatedAt = now).toEntity()
                     )
                 }
-            }
+            }.foldWithHttp()
         }
 
+    override suspend fun generateInterviews(project: Project): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            if (!isConnected()) {
+                return@withContext Result.failure(
+                    Exception("No internet connection. Connect to a network and try again.")
+                )
+            }
+            runCatching {
+                val raw = requestJson(
+                    buildRequest(
+                        systemContent = INTERVIEWS_SYSTEM_PROMPT,
+                        userContent = productUserMessage(project)
+                    )
+                )
+                val dto = gson.fromJson(raw, UserInterviewsResponseDto::class.java)
+                val insights = dto.toGeneratedInsights(project.id)
+                val now = System.currentTimeMillis()
+                db.withTransaction {
+                    generatedInsightDao.deleteByProjectIdAndType(
+                        project.id,
+                        InsightType.USER_INTERVIEW.name
+                    )
+                    generatedInsightDao.insertAll(insights.map { it.toEntity() })
+                    projectDao.update(project.copy(updatedAt = now).toEntity())
+                }
+            }.foldWithHttp()
+        }
+
+    override suspend fun generateSwot(project: Project): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            if (!isConnected()) {
+                return@withContext Result.failure(
+                    Exception("No internet connection. Connect to a network and try again.")
+                )
+            }
+            val competitorRows = generatedInsightDao
+                .getByProjectIdAndType(project.id, InsightType.COMPETITOR.name)
+                .first()
+            if (competitorRows.isEmpty()) {
+                return@withContext Result.failure(
+                    IllegalStateException("Run competitor scan first")
+                )
+            }
+            val competitorContext = competitorRows.joinToString("\n\n") { entity ->
+                "${entity.title}: ${entity.content}"
+            }
+            runCatching {
+                val raw = requestJson(
+                    buildRequest(
+                        systemContent = SWOT_SYSTEM_PROMPT,
+                        userContent = productUserMessage(project) +
+                            "\nCompetitive landscape: $competitorContext"
+                    )
+                )
+                val dto = gson.fromJson(raw, SwotResponseDto::class.java)
+                val insights = dto.toGeneratedInsights(project.id)
+                val now = System.currentTimeMillis()
+                db.withTransaction {
+                    generatedInsightDao.deleteByProjectIdAndType(
+                        project.id,
+                        InsightType.SWOT_ITEM.name
+                    )
+                    generatedInsightDao.insertAll(insights.map { it.toEntity() })
+                    projectDao.update(project.copy(updatedAt = now).toEntity())
+                }
+            }.foldWithHttp()
+        }
+
+    override suspend fun markStage1Complete(projectId: String) = withContext(Dispatchers.IO) {
+        projectDao.updateStage1Complete(projectId, true, System.currentTimeMillis())
+    }
+
     override fun getProjects(): Flow<List<Project>> =
-        projectDao.getAll().map { list -> list.map { it.toDomain() } }
+        projectDao.getAll().map { list ->
+            list.map { it.toDomain() }
+        }
 
     override fun getProjectWithInsights(projectId: String): Flow<ProjectWithInsights> =
         combine(
             projectDao.getById(projectId).filterNotNull(),
             generatedInsightDao.getByProjectId(projectId)
         ) { projectEntity, insightEntities ->
+            val domain = insightEntities.map { it.toDomain() }
             ProjectWithInsights(
                 project = projectEntity.toDomain(),
-                insights = insightEntities.map { it.toDomain() }
+                competitors = domain.filter { it.type == InsightType.COMPETITOR },
+                interviews = domain.filter { it.type == InsightType.USER_INTERVIEW },
+                swotItems = domain.filter { it.type == InsightType.SWOT_ITEM }
             )
         }
 
@@ -94,6 +175,14 @@ class ProjectRepositoryImpl @Inject constructor(
         projectDao.delete(projectId)
     }
 
+    private suspend fun requestJson(request: OpenAiChatCompletionRequestDto): String {
+        val response = openAiApiService.createChatCompletion(request)
+        return response.assistantText()
+            .replace("```json", "")
+            .replace("```", "")
+            .trim()
+    }
+
     private fun isConnected(): Boolean {
         val cm = context.getSystemService(ConnectivityManager::class.java) ?: return false
         val network = cm.activeNetwork ?: return false
@@ -101,50 +190,78 @@ class ProjectRepositoryImpl @Inject constructor(
             ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
     }
 
-    private fun buildRequest(project: Project) = AnthropicRequestDto(
-        model = "claude-sonnet-4-20250514",
-        maxTokens = 1500,
-        system = SYSTEM_PROMPT,
-        messages = listOf(
-            MessageDto(
-                role = "user",
-                content = "Project title: ${project.title}\n" +
-                        "User group: ${project.userGroup}\n" +
-                        "Context: ${project.context}\n" +
-                        "Stage: ${project.stage.name}"
-            )
+    private fun buildRequest(systemContent: String, userContent: String) =
+        OpenAiChatCompletionRequestDto(
+            model = OPEN_AI_MODEL,
+            messages = listOf(
+                OpenAiChatMessageDto(role = "system", content = systemContent),
+                OpenAiChatMessageDto(role = "user", content = userContent)
+            ),
+            maxTokens = 2500
         )
-    )
+
+    private fun productUserMessage(project: Project) =
+        "Product idea: ${project.title}\nDescription: ${project.description}"
+
+    private inline fun <T> Result<T>.foldWithHttp(): Result<T> =
+        fold(
+            onSuccess = { Result.success(it) },
+            onFailure = { t ->
+                when (t) {
+                    is HttpException -> {
+                        val body = t.response()?.errorBody()?.string().orEmpty()
+                        Result.failure(Exception("OpenAI HTTP ${t.code()}: $body", t))
+                    }
+                    else -> Result.failure(t)
+                }
+            }
+        )
 
     companion object {
-        private val SYSTEM_PROMPT = """
-            You are a senior HCI researcher. Given a project brief, return ONLY valid JSON with
-            no preamble, no markdown, no code fences — raw JSON only.
+        private const val OPEN_AI_MODEL = "gpt-4o"
 
-            Use this exact shape:
+        private val COMPETITORS_SYSTEM_PROMPT = """
+            You are a senior product strategist. Return ONLY valid JSON, no markdown.
             {
-              "personas": [
-                { "name": "", "age": 0, "role": "", "goal": "", "frustration": "" }
-              ],
-              "methodCards": [
-                { "method": "", "whyThisFits": "", "estimatedTime": "" }
-              ],
-              "assumptionsToTest": [
-                { "assumption": "", "risk": "HIGH|MEDIUM|LOW", "rationale": "" }
-              ],
-              "recruitBrief": {
-                "whoToFind": "",
-                "screenFor": "",
-                "exclude": ""
+              "competitors": [{ "name": "", "description": "", "weakness": "" }],
+              "marketGap": "",
+              "painPoints": [{ "painPoint": "", "rationale": "" }]
+            }
+            Rules: 3-5 real named competitors, specific market gap, exactly 3 pain points.
+        """.trimIndent()
+
+        private val INTERVIEWS_SYSTEM_PROMPT = """
+            You are simulating user research. Return ONLY valid JSON, no markdown.
+            {
+              "interviews": [{
+                "name": "", "role": "",
+                "sentiment": "ENTHUSIASTIC|SKEPTICAL|INDIFFERENT",
+                "reaction": "", "quote": ""
+              }]
+            }
+            Rules: exactly 3 interviews one per sentiment, quote must be first-person verbatim.
+        """.trimIndent()
+
+        private val SWOT_SYSTEM_PROMPT = """
+            You are a senior product strategist. Return ONLY valid JSON, no markdown.
+            {
+              "swot": {
+                "strengths": ["","","",""],
+                "weaknesses": ["","","",""],
+                "opportunities": ["","","",""],
+                "threats": ["","","",""]
               }
             }
-
-            Rules:
-            - Generate exactly 3 personas, 3 method cards, 4 assumptions sorted HIGH to LOW risk, and 1 recruit brief.
-            - Tailor every output specifically to the user group, context, and stage provided.
-            - No generic advice. Each output must only make sense for THIS project.
-            - Method cards must explain WHY this method fits this specific user group and stage, not just name the method.
-            - Assumptions must identify real risks in this idea, not textbook placeholders.
+            Rules: exactly 4 per quadrant, opportunities/threats must reference the
+            competitive landscape, no generic filler.
         """.trimIndent()
     }
+}
+
+private fun OpenAiChatCompletionResponseDto.assistantText(): String {
+    val text = choices.firstOrNull()?.message?.content?.trim().orEmpty()
+    if (text.isEmpty()) {
+        throw IllegalStateException("OpenAI response had no assistant content")
+    }
+    return text
 }

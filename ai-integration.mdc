@@ -1,0 +1,181 @@
+---
+description: OpenAI API integration rules — prompts, DTOs, chaining strategy. Apply when working in data/remote/ or repository files.
+globs: ["**/data/remote/**/*.kt", "**/data/repository/**/*.kt"]
+alwaysApply: false
+---
+
+# DesignSpark — AI integration rules
+
+## Endpoint and headers
+
+```
+POST https://api.openai.com/v1/chat/completions
+
+Headers:
+  Authorization: Bearer BuildConfig.OPENAI_API_KEY
+  Content-Type: application/json
+```
+
+API key lives in `BuildConfig` as `OPENAI_API_KEY`.
+Read via `BuildConfig`. Never hardcode. Never commit.
+
+## Request shape
+
+```kotlin
+data class OpenAiRequestDto(
+    val model: String = "gpt-4o-mini", 
+    val max_tokens: Int = 1500,
+    val messages: List<MessageDto>
+)
+
+data class MessageDto(
+    val role: String, // "system", "user", "assistant"
+    val content: String
+)
+```
+
+## Response parsing
+
+The response content field is a JSON string. Always strip accidental markdown
+fences before parsing with Gson:
+
+```kotlin
+val raw = response.choices.first().message.content
+    .replace("```json", "")
+    .replace("```", "")
+    .trim()
+```
+
+Wrap every parse in try/catch and return `Result.failure` on any exception.
+
+## The three AI calls — system prompts and expected JSON
+
+### Call 1 — Competitor scan
+
+**System prompt:**
+```
+You are a senior product strategist. Given a product idea and target description,
+return ONLY valid JSON — no preamble, no markdown, no code fences.
+
+{
+  "competitors": [
+    { "name": "", "description": "", "weakness": "" }
+  ],
+  "marketGap": "",
+  "painPoints": [
+    { "painPoint": "", "rationale": "" }
+  ]
+}
+
+Rules:
+- 3 to 5 real, named competitors. No invented names.
+- marketGap must be specific to THIS idea — not generic.
+- Exactly 3 pain points that existing solutions fail to address.
+- Everything must be grounded in the idea provided. No generic output.
+```
+
+**User message:**
+```
+Product idea: {project.title}
+Description: {project.description}
+```
+
+### Call 2 — Simulated user interviews
+
+**System prompt:**
+```
+You are simulating user research interviews. Given a product idea, respond as three
+different people from the target audience — one enthusiastic, one skeptical, one
+indifferent. Return ONLY valid JSON — no preamble, no markdown, no code fences.
+
+{
+  "interviews": [
+    {
+      "name": "",
+      "role": "",
+      "sentiment": "ENTHUSIASTIC|SKEPTICAL|INDIFFERENT",
+      "reaction": "",
+      "quote": ""
+    }
+  ]
+}
+
+Rules:
+- Exactly 3 interviews, one per sentiment type.
+- quote must read as a verbatim thing a real person would say — first person,
+  conversational, specific to THIS idea. Not a summary.
+- reaction is 1-2 sentences explaining their stance.
+- Make names and roles feel realistic and varied for the target audience.
+```
+
+**User message:**
+```
+Product idea: {project.title}
+Description: {project.description}
+```
+
+### Call 3 — SWOT analysis (chained — uses competitor scan results)
+
+This call MUST include the competitor scan results from Room as context.
+The repository fetches competitors from Room before building this prompt.
+Never call the SWOT endpoint without competitor context.
+
+**System prompt:**
+```
+You are a senior product strategist. Given a product idea and its competitive
+landscape, generate a SWOT analysis. Return ONLY valid JSON — no preamble,
+no markdown, no code fences.
+
+{
+  "swot": {
+    "strengths": ["", "", "", ""],
+    "weaknesses": ["", "", "", ""],
+    "opportunities": ["", "", "", ""],
+    "threats": ["", "", "", ""]
+  }
+}
+
+Rules:
+- Exactly 4 items per quadrant.
+- Opportunities and threats must directly reference the competitive landscape provided.
+- Weaknesses must be honest — do not soften them.
+- No generic business-school filler. Every item must be specific to THIS idea.
+```
+
+**User message:**
+```
+Product idea: {project.title}
+Description: {project.description}
+
+Competitive landscape (from prior research):
+Competitors: {competitorSummary}
+Market gap: {marketGap}
+Key pain points: {painPointSummary}
+```
+
+## Chaining implementation pattern
+
+```kotlin
+// In ProjectRepositoryImpl — generateSwot() example
+suspend fun generateSwot(projectId: String): Result<Unit> {
+    // 1. Fetch competitor results from Room first
+    val competitors = competitorDao.getByProjectId(projectId).first()
+    if (competitors.isEmpty()) return Result.failure(
+        IllegalStateException("Competitor scan must complete before SWOT")
+    )
+
+    // 2. Assemble context string from Room data
+    val competitorSummary = competitors.joinToString { it.title }
+    // ... build full context
+
+    // 3. Build prompt with context injected
+    val request = buildSwotRequest(project, competitorSummary, marketGap, painPoints)
+
+    // 4. Call API, parse, write to Room
+    return runCatching {
+        val response = api.sendMessage(request)
+        val dto = parseSwotResponse(response)
+        insightDao.insertAll(dto.toEntities(projectId))
+    }
+}
+```

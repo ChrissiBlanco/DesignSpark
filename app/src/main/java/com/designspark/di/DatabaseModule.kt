@@ -19,8 +19,11 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
-        Room.databaseBuilder(context, AppDatabase::class.java, "designspark.db").build()
+    fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
+        return Room.databaseBuilder(context, AppDatabase::class.java, "designspark.db")
+            .addMigrations(AppDatabase.MIGRATION_1_2)
+            .build()
+    }
 
     @Provides
     fun provideProjectDao(db: AppDatabase): ProjectDao = db.projectDao()

@@ -4,34 +4,26 @@ import com.designspark.domain.model.Annotation
 import com.designspark.domain.model.GeneratedInsight
 import com.designspark.domain.model.InsightType
 import com.designspark.domain.model.Project
-import com.designspark.domain.model.ProjectStage
-import com.designspark.domain.model.ProjectStatus
-import com.designspark.domain.model.RiskLevel
+import com.designspark.domain.model.SwotQuadrant
 
 // ── ProjectEntity ↔ Project ──────────────────────────────────────────────────
 
 fun ProjectEntity.toDomain(): Project = Project(
     id = id,
     title = title,
-    userGroup = userGroup,
-    context = context,
-    stage = ProjectStage.valueOf(stage),
+    description = description,
     createdAt = createdAt,
     updatedAt = updatedAt,
-    status = ProjectStatus.valueOf(status),
-    isSynced = isSynced
+    stage1Complete = stage1Complete
 )
 
 fun Project.toEntity(): ProjectEntity = ProjectEntity(
     id = id,
     title = title,
-    userGroup = userGroup,
-    context = context,
-    stage = stage.name,
+    description = description,
     createdAt = createdAt,
     updatedAt = updatedAt,
-    status = status.name,
-    isSynced = isSynced
+    stage1Complete = stage1Complete
 )
 
 // ── GeneratedInsightEntity ↔ GeneratedInsight ────────────────────────────────
@@ -42,7 +34,7 @@ fun GeneratedInsightEntity.toDomain(): GeneratedInsight = GeneratedInsight(
     type = InsightType.valueOf(type),
     title = title,
     content = content,
-    riskLevel = riskLevel?.let { RiskLevel.valueOf(it) },
+    quadrant = quadrant?.let { SwotQuadrant.valueOf(it) },
     orderIndex = orderIndex,
     generatedAt = generatedAt
 )
@@ -53,7 +45,7 @@ fun GeneratedInsight.toEntity(): GeneratedInsightEntity = GeneratedInsightEntity
     type = type.name,
     title = title,
     content = content,
-    riskLevel = riskLevel?.name,
+    quadrant = quadrant?.name,
     orderIndex = orderIndex,
     generatedAt = generatedAt
 )

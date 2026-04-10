@@ -1,0 +1,103 @@
+---
+description: Navigation structure and screen map for DesignSpark. Apply when working in ui/ files.
+globs: ["**/ui/**/*.kt"]
+alwaysApply: false
+---
+
+# DesignSpark — navigation and screen structure
+
+## Route map
+
+```
+HomeScreen
+  └── NewIdeaScreen (title + description input)
+        └── Stage1Screen (progress hub: shows 3 steps with status)
+              ├── CompetitorScanScreen  (loading → results → "Next" CTA)
+              ├── UserInterviewsScreen  (loading → results → "Next" CTA)
+              └── SwotScreen            (loading → results → "Done" CTA)
+                    └── SummaryScreen   (full Stage 1 recap, entry to Stage 2 stub)
+
+Stage2Screen  (stub — locked cards, "Coming soon" badges)
+Stage3Screen  (stub — locked cards, "Coming soon" badges)
+```
+
+## Navigation routes
+
+```kotlin
+sealed class Screen(val route: String) {
+    object Home : Screen("home")
+    object NewIdea : Screen("new_idea")
+    object Stage1 : Screen("stage1/{projectId}") {
+        fun createRoute(projectId: String) = "stage1/$projectId"
+    }
+    object CompetitorScan : Screen("competitor_scan/{projectId}") {
+        fun createRoute(projectId: String) = "competitor_scan/$projectId"
+    }
+    object UserInterviews : Screen("user_interviews/{projectId}") {
+        fun createRoute(projectId: String) = "user_interviews/$projectId"
+    }
+    object Swot : Screen("swot/{projectId}") {
+        fun createRoute(projectId: String) = "swot/$projectId"
+    }
+    object Summary : Screen("summary/{projectId}") {
+        fun createRoute(projectId: String) = "summary/$projectId"
+    }
+    object Stage2 : Screen("stage2/{projectId}") {
+        fun createRoute(projectId: String) = "stage2/$projectId"
+    }
+    object Stage3 : Screen("stage3/{projectId}") {
+        fun createRoute(projectId: String) = "stage3/$projectId"
+    }
+}
+```
+
+## Screen responsibilities
+
+**HomeScreen**
+- Lists all saved projects with title, creation date, and stage1Complete badge
+- FAB navigates to NewIdeaScreen
+- Swipe-to-dismiss deletes a project with undo Snackbar
+
+**NewIdeaScreen**
+- Two fields: title (required), description (required, multiline)
+- On submit: creates Project in Room, navigates to Stage1Screen
+- Inline validation on empty submit attempt
+
+**Stage1Screen**
+- Progress tracker showing three steps: Competitor scan / User interviews / SWOT
+- Each step has a status: pending / complete
+- Tapping a complete step navigates to its results screen
+- "Start" button triggers CompetitorScanScreen for first incomplete step
+
+**CompetitorScanScreen / UserInterviewsScreen / SwotScreen**
+- All follow the same pattern:
+  1. Auto-trigger AI call on enter (if results not already in Room)
+  2. Full-screen loading state with contextual message
+  3. Results displayed in cards
+  4. "Next" / "Done" CTA at bottom navigates forward
+- If results already exist in Room (user navigated back), show results immediately,
+  no AI call
+
+**SummaryScreen**
+- Read-only recap of all Stage 1 results in three sections
+- "Continue to Stage 2" button navigates to Stage2Screen stub
+
+**Stage2Screen / Stage3Screen (stubs)**
+- Three locked cards per screen showing planned features
+- Each card: icon, title, one-line description, "Coming in Stage X" badge
+- Back navigation only — no forward CTA
+
+## UiState pattern — use this shape for every screen
+
+```kotlin
+data class <Screen>UiState(
+    val isLoading: Boolean = false,
+    val data: <DataType>? = null,
+    val error: String? = null,
+    // add screen-specific fields below
+)
+```
+
+Loading state shows a full-screen centered `CircularProgressIndicator` with a
+contextual message string (e.g. "Scanning the competitive landscape…").
+Error state shows a full-screen error message with a "Retry" button.

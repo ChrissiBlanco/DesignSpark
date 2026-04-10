@@ -6,10 +6,11 @@ data class GeneratedInsight(
     val type: InsightType,
     val title: String,
     val content: String,
-    val riskLevel: RiskLevel?,
+    val quadrant: SwotQuadrant?,
     val orderIndex: Int,
     val generatedAt: Long
 )
 
-enum class InsightType { PERSONA, METHOD_CARD, ASSUMPTION, RECRUIT_BRIEF }
-enum class RiskLevel { HIGH, MEDIUM, LOW }
+enum class InsightType { COMPETITOR, USER_INTERVIEW, SWOT_ITEM }
+
+enum class SwotQuadrant { STRENGTH, WEAKNESS, OPPORTUNITY, THREAT }

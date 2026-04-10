@@ -54,6 +54,20 @@ class GeneratedInsightDaoTest {
     }
 
     @Test
+    fun getByProjectIdAndType_filters_type() = runTest {
+        projectDao.insert(projectEntity("proj-1"))
+        dao.insertAll(listOf(
+            insightEntity("i1", "proj-1", 0, type = "COMPETITOR"),
+            insightEntity("i2", "proj-1", 1, type = "USER_INTERVIEW")
+        ))
+
+        val competitors = dao.getByProjectIdAndType("proj-1", "COMPETITOR").first()
+
+        assertEquals(1, competitors.size)
+        assertEquals("COMPETITOR", competitors[0].type)
+    }
+
+    @Test
     fun getByProjectId_returns_insights_ordered_by_order_index() = runTest {
         projectDao.insert(projectEntity("proj-1"))
         dao.insertAll(listOf(
@@ -77,13 +91,13 @@ class GeneratedInsightDaoTest {
     @Test
     fun insertAll_with_replace_strategy_overwrites_existing() = runTest {
         projectDao.insert(projectEntity("proj-1"))
-        dao.insertAll(listOf(insightEntity("i1", "proj-1", 0, type = "PERSONA")))
-        dao.insertAll(listOf(insightEntity("i1", "proj-1", 0, type = "METHOD_CARD")))
+        dao.insertAll(listOf(insightEntity("i1", "proj-1", 0, type = "COMPETITOR")))
+        dao.insertAll(listOf(insightEntity("i1", "proj-1", 0, type = "USER_INTERVIEW")))
 
         val result = dao.getByProjectId("proj-1").first()
 
         assertEquals(1, result.size)
-        assertEquals("METHOD_CARD", result[0].type)
+        assertEquals("USER_INTERVIEW", result[0].type)
     }
 
     @Test
@@ -98,6 +112,21 @@ class GeneratedInsightDaoTest {
         val result = dao.getByProjectId("proj-1").first()
 
         assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun deleteByProjectIdAndType_removes_only_that_type() = runTest {
+        projectDao.insert(projectEntity("proj-1"))
+        dao.insertAll(listOf(
+            insightEntity("i1", "proj-1", 0, type = "COMPETITOR"),
+            insightEntity("i2", "proj-1", 1, type = "USER_INTERVIEW")
+        ))
+        dao.deleteByProjectIdAndType("proj-1", "COMPETITOR")
+
+        val remaining = dao.getByProjectId("proj-1").first()
+
+        assertEquals(1, remaining.size)
+        assertEquals("USER_INTERVIEW", remaining[0].type)
     }
 
     @Test
@@ -133,27 +162,24 @@ class GeneratedInsightDaoTest {
     private fun projectEntity(id: String) = ProjectEntity(
         id = id,
         title = "Test Project",
-        userGroup = "Users",
-        context = "Context",
-        stage = "NOTHING",
+        description = "Context",
         createdAt = 1000L,
         updatedAt = 1000L,
-        status = "DRAFT",
-        isSynced = false
+        stage1Complete = false
     )
 
     private fun insightEntity(
         id: String,
         projectId: String,
         orderIndex: Int,
-        type: String = "PERSONA"
+        type: String = "COMPETITOR"
     ) = GeneratedInsightEntity(
         id = id,
         projectId = projectId,
         type = type,
         title = "Insight $id",
         content = "{}",
-        riskLevel = null,
+        quadrant = null,
         orderIndex = orderIndex,
         generatedAt = 1000L
     )

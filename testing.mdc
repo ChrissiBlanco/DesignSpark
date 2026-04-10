@@ -1,0 +1,94 @@
+---
+description: Testing rules and patterns for DesignSpark. Apply when working in test/ or androidTest/ directories.
+globs: ["**/test/**/*.kt", "**/androidTest/**/*.kt"]
+alwaysApply: false
+---
+
+# DesignSpark — testing rules
+
+## Tools
+- Unit tests: JUnit 4 + MockK + Turbine (Flow testing)
+- Instrumented tests: JUnit 4 + Room in-memory database
+- Never use Mockito — use MockK exclusively
+
+## Coverage expectations
+- Domain layer (use cases): 100% — these are pure Kotlin, no excuses
+- Data layer (repository): happy path + error path for every public method
+- ViewModel layer: loading → success and loading → error for every screen
+- DAOs: insert, query, delete for all three entities
+
+## ViewModel test pattern
+
+```kotlin
+@OptIn(ExperimentalCoroutinesApi::class)
+class HomeViewModelTest {
+    @get:Rule val mainDispatcherRule = MainDispatcherRule()
+
+    private val getProjects: GetProjectsUseCase = mockk()
+    private lateinit var viewModel: HomeViewModel
+
+    @Test
+    fun `uiState emits projects on success`() = runTest {
+        val projects = listOf(/* test data */)
+        every { getProjects() } returns flowOf(projects)
+        viewModel = HomeViewModel(getProjects)
+
+        viewModel.uiState.test {
+            val state = awaitItem()
+            assertThat(state.projects).isEqualTo(projects)
+            assertThat(state.isLoading).isFalse()
+        }
+    }
+}
+```
+
+## Repository test pattern — mock the API, verify Room
+
+```kotlin
+@Test
+fun `generateCompetitors writes results to Room on success`() = runTest {
+    val mockApi = mockk<OpenAiApiService>()
+    coEvery { mockApi.sendMessage(any()) } returns validCompetitorResponse()
+
+    repository.generateCompetitors(testProject)
+
+    val saved = competitorDao.getByProjectId(testProject.id).first()
+    assertThat(saved).hasSize(3)
+    assertThat(saved.first().type).isEqualTo(InsightType.COMPETITOR.name)
+}
+```
+
+## DAO test pattern — always use in-memory database
+
+```kotlin
+@RunWith(AndroidJUnit4::class)
+class ProjectDaoTest {
+    private lateinit var db: AppDatabase
+    private lateinit var dao: ProjectDao
+
+    @Before
+    fun setup() {
+        db = Room.inMemoryDatabaseBuilder(
+            ApplicationProvider.getApplicationContext(),
+            AppDatabase::class.java
+        ).allowMainThreadQueries().build()
+        dao = db.projectDao()
+    }
+
+    @After
+    fun teardown() = db.close()
+}
+```
+
+## What to test for chained AI calls specifically
+The SWOT generation has a dependency on competitor data existing in Room.
+Always write a test for the failure case:
+
+```kotlin
+@Test
+fun `generateSwot returns failure when no competitor data exists`() = runTest {
+    // Do not insert any competitor data
+    val result = repository.generateSwot(testProjectId)
+    assertThat(result.isFailure).isTrue()
+}
+```

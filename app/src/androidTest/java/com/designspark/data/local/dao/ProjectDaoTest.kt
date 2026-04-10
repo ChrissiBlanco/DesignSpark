@@ -45,7 +45,7 @@ class ProjectDaoTest {
         assertNotNull(result)
         assertEquals("p1", result?.id)
         assertEquals("My App", result?.title)
-        assertEquals("Students", result?.userGroup)
+        assertEquals("Students\nMobile learning", result?.description)
     }
 
     @Test
@@ -95,6 +95,17 @@ class ProjectDaoTest {
     }
 
     @Test
+    fun updateStage1Complete_updates_flag_and_timestamp() = runTest {
+        dao.insert(projectEntity("p1", "App"))
+        dao.updateStage1Complete("p1", true, 5000L)
+
+        val result = dao.getById("p1").first()
+
+        assertEquals(true, result?.stage1Complete)
+        assertEquals(5000L, result?.updatedAt)
+    }
+
+    @Test
     fun delete_removes_entity() = runTest {
         dao.insert(projectEntity("p1", "App A"))
         dao.delete("p1")
@@ -119,12 +130,9 @@ class ProjectDaoTest {
     private fun projectEntity(id: String, title: String, updatedAt: Long = 1000L) = ProjectEntity(
         id = id,
         title = title,
-        userGroup = "Students",
-        context = "Mobile learning",
-        stage = "NOTHING",
+        description = "Students\nMobile learning",
         createdAt = 1000L,
         updatedAt = updatedAt,
-        status = "DRAFT",
-        isSynced = false
+        stage1Complete = false
     )
 }

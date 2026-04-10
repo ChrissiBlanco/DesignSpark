@@ -3,14 +3,8 @@ package com.designspark.domain.model
 data class Project(
     val id: String,
     val title: String,
-    val userGroup: String,
-    val context: String,
-    val stage: ProjectStage,
+    val description: String,
     val createdAt: Long,
     val updatedAt: Long,
-    val status: ProjectStatus,
-    val isSynced: Boolean
+    val stage1Complete: Boolean = false
 )
-
-enum class ProjectStage { NOTHING, ROUGH_IDEA, PROTOTYPE }
-enum class ProjectStatus { DRAFT, GENERATED, ANNOTATED }

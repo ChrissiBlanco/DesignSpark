@@ -119,21 +119,18 @@ class AnnotationDaoTest {
         projectDao.insert(ProjectEntity(
             id = "proj-1",
             title = "Test Project",
-            userGroup = "Users",
-            context = "Context",
-            stage = "NOTHING",
+            description = "Context",
             createdAt = 1000L,
             updatedAt = 1000L,
-            status = "DRAFT",
-            isSynced = false
+            stage1Complete = false
         ))
         insightDao.insertAll(listOf(GeneratedInsightEntity(
             id = "insight-1",
             projectId = "proj-1",
-            type = "PERSONA",
+            type = "COMPETITOR",
             title = "Test Insight",
             content = "{}",
-            riskLevel = null,
+            quadrant = null,
             orderIndex = 0,
             generatedAt = 1000L
         )))

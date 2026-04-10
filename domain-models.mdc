@@ -1,0 +1,79 @@
+---
+description: Canonical domain models and enums for DesignSpark. Apply when working in domain/ or data/ layers.
+globs: ["**/domain/**/*.kt", "**/data/**/*.kt"]
+alwaysApply: false
+---
+
+# DesignSpark — domain models
+
+These are the canonical models. Do not rename fields, add fields, or change types
+without being explicitly asked. All Room entities and API DTOs must map TO these —
+never the other way around.
+
+## Core models
+
+```kotlin
+data class Project(
+    val id: String,               // UUID
+    val title: String,
+    val description: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val stage1Complete: Boolean = false
+)
+
+data class GeneratedInsight(
+    val id: String,               // UUID
+    val projectId: String,
+    val type: InsightType,
+    val title: String,
+    val content: String,          // JSON string — parsed at UI layer per type
+    val quadrant: SwotQuadrant?,  // only populated for SWOT_ITEM type
+    val orderIndex: Int,
+    val generatedAt: Long
+)
+
+data class Annotation(
+    val id: String,
+    val insightId: String,
+    val note: String,
+    val createdAt: Long
+)
+```
+
+## Enums
+
+```kotlin
+enum class InsightType {
+    COMPETITOR,        // competitor scan results
+    USER_INTERVIEW,    // simulated user interview response
+    SWOT_ITEM          // one item in the SWOT grid
+}
+
+enum class SwotQuadrant {
+    STRENGTH, WEAKNESS, OPPORTUNITY, THREAT
+}
+```
+
+## Composite return type for Stage 1 detail screen
+
+```kotlin
+data class ProjectWithInsights(
+    val project: Project,
+    val competitors: List<GeneratedInsight>,
+    val interviews: List<GeneratedInsight>,
+    val swotItems: List<GeneratedInsight>   // pre-sorted: S → W → O → T
+)
+```
+
+## What was removed from the original design
+The following types from the original persona-based design are now deleted:
+- `Persona` model → replaced by `GeneratedInsight` with type `USER_INTERVIEW`
+- `InsightType.PERSONA` → deleted
+- `InsightType.METHOD_CARD` → deleted
+- `InsightType.ASSUMPTION` → deleted
+- `InsightType.RECRUIT_BRIEF` → deleted
+- `ProjectStage` enum → deleted (stages are now tracked by `stage1Complete` boolean)
+- `ProjectStatus` enum (DRAFT / GENERATED / ANNOTATED) → deleted
+
+Do not recreate any of these. If the old code references them, delete the reference.

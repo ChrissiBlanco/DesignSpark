@@ -1,5 +1,6 @@
 *.iml
 .gradle
+.kotlin
 /local.properties
 /.idea/caches
 /.idea/libraries
@@ -7,9 +8,22 @@
 /.idea/workspace.xml
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
+# Optional: uncomment to stop tracking IDE files entirely (then `git rm -r --cached .idea`).
+# /.idea/
 .DS_Store
 /build
+**/build/
 /captures
 .externalNativeBuild
 .cxx
 local.properties
+
+# Android / packaging
+*.apk
+*.ap_
+*.aab
+*.dex
+
+# Keystores (never commit)
+*.jks
+*.keystore

@@ -1,0 +1,53 @@
+---
+description: Core architecture rules for DesignSpark. Apply to every file in the project.
+globs: ["**/*.kt"]
+alwaysApply: true
+---
+
+# DesignSpark — architecture rules
+
+## What this app does
+DesignSpark guides users through validating a rough product idea across three stages.
+Stage 1 (Validation & Research) is fully implemented. Stages 2 and 3 are stubbed.
+
+Stage 1 has three sequential steps, each making one AI call whose output is persisted
+to Room before the next step begins:
+1. Competitor scan — competitors, market gap, user pain points
+2. Simulated user interviews — 3 users reacting to the idea (enthusiastic / skeptical / indifferent)
+3. SWOT analysis — built using competitor scan results as context (chained AI call)
+
+## Layer rules — enforced on every file
+
+**UI layer** (`ui/`)
+- Jetpack Compose only. Zero XML layouts.
+- Composables observe state and emit events — no logic, no repository access.
+- Use `collectAsStateWithLifecycle()` everywhere. Never `collectAsState()`.
+- One ViewModel per screen. No shared ViewModels across screens.
+
+**ViewModel layer** (`ui/screens/*/`)
+- Expose a single `UiState` data class via `StateFlow`.
+- Use `viewModelScope` only. Never `GlobalScope` or `runBlocking`.
+- Call use cases only — never DAOs, never Retrofit services directly.
+- Do not assemble AI prompts — that is the repository's responsibility.
+
+**Domain layer** (`domain/`)
+- Pure Kotlin. Zero Android imports.
+- One use case per user action, one file each.
+- Use cases call the repository interface only.
+
+**Data layer** (`data/`)
+- Room is the single source of truth.
+- Flow for DB: write to Room first, UI observes Room — never return API data directly to UI.
+- All I/O in `withContext(Dispatchers.IO)` inside the repository implementation.
+- Repository assembles full AI prompt context (including prior step results from Room).
+- Returns `Result<T>` — never throws to callers.
+
+## What is strictly forbidden
+- `LiveData` anywhere
+- `!!` non-null assertions
+- Logic in composables
+- ViewModel accessing DAOs directly
+- API DTOs returned to the UI layer
+- `GlobalScope` or `runBlocking` in production code
+- Hardcoded strings — use `strings.xml`
+- New Gradle dependencies without being explicitly asked

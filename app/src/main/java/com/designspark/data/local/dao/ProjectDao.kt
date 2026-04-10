@@ -24,4 +24,9 @@ interface ProjectDao {
 
     @Query("SELECT * FROM projects WHERE id = :id")
     fun getById(id: String): Flow<ProjectEntity?>
+
+    @Query(
+        "UPDATE projects SET stage1_complete = :complete, updated_at = :updatedAt WHERE id = :projectId"
+    )
+    suspend fun updateStage1Complete(projectId: String, complete: Boolean, updatedAt: Long)
 }

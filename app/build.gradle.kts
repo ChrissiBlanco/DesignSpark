@@ -23,7 +23,7 @@ android {
         val localProps = Properties()
         rootProject.file("local.properties").takeIf { it.exists() }
             ?.inputStream()?.use { stream -> localProps.load(stream) }
-        val apiKeyRaw = localProps.getProperty("ANTHROPIC_API_KEY", "").trim()
+        val apiKeyRaw = localProps.getProperty("OPENAI_API_KEY", "").trim()
             .removeSurrounding("\"")
             .removeSurrounding("'")
         val apiKeyEscaped = apiKeyRaw
@@ -31,7 +31,7 @@ android {
             .replace("\"", "\\\"")
         buildConfigField(
             "String",
-            "ANTHROPIC_API_KEY",
+            "OPENAI_API_KEY",
             "\"$apiKeyEscaped\""
         )
     }

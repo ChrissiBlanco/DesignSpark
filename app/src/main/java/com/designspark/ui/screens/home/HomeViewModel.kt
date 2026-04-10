@@ -17,7 +17,8 @@ import javax.inject.Inject
 
 data class HomeUiState(
     val projects: List<Project> = emptyList(),
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val error: String? = null
 )
 
 @HiltViewModel
@@ -26,38 +27,38 @@ class HomeViewModel @Inject constructor(
     private val deleteProjectUseCase: DeleteProjectUseCase
 ) : ViewModel() {
 
-    // IDs currently soft-deleted (hidden from list, not yet removed from DB)
-    private val _deletingIds = MutableStateFlow<Set<String>>(emptySet())
+    private val hiddenIds = MutableStateFlow<Set<String>>(emptySet())
 
     val uiState: StateFlow<HomeUiState> = combine(
         getProjectsUseCase(),
-        _deletingIds
-    ) { projects, deletingIds ->
+        hiddenIds
+    ) { projects, hidden ->
         HomeUiState(
-            projects = projects.filter { it.id !in deletingIds },
-            isLoading = false
+            projects = projects.filter { it.id !in hidden },
+            isLoading = false,
+            error = null
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = HomeUiState()
+        initialValue = HomeUiState(isLoading = true)
     )
 
-    /** Hide project from list immediately; wait for [confirmDelete] or [undoDelete]. */
-    fun requestDelete(projectId: String) {
-        _deletingIds.update { it + projectId }
+    fun hideProjectForUndo(projectId: String) {
+        hiddenIds.update { it + projectId }
     }
 
-    /** Re-show the project — user pressed Undo. */
-    fun undoDelete(projectId: String) {
-        _deletingIds.update { it - projectId }
+    fun unhideProject(projectId: String) {
+        hiddenIds.update { it - projectId }
     }
 
-    /** Actually delete from DB — snackbar timed out without Undo. */
     fun confirmDelete(projectId: String) {
         viewModelScope.launch {
-            deleteProjectUseCase(projectId)
-            _deletingIds.update { it - projectId }
+            try {
+                deleteProjectUseCase(projectId)
+            } finally {
+                hiddenIds.update { it - projectId }
+            }
         }
     }
 }
